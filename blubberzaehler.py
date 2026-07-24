@@ -269,26 +269,32 @@ render_blubber_damage(total)
 st.metric("Gesamtwortzahl (Auswahl)", f"{total:,}".replace(",", "."))
 
 
-def _render(node: CountNode, depth: int = 0):
-    """Zeigt ein Kapitel; Hauptkapitel fett mit Gesamt-Count."""
-    indent = "    " * depth
-    count_str = f"{node.total:,}".replace(",", ".")
+def _fmt_n(n: int) -> str:
+    return f"{n:,}".replace(",", ".")
+
+
+def _md_lines(node: CountNode, depth: int = 0):
+    """Erzeugt verschachtelte Markdown-Listenzeilen für ein Kapitel."""
+    pad = "  " * depth  # 2 Leerzeichen pro Ebene -> saubere Markdown-Liste
     if depth == 0:
-        st.markdown(f"**{node.number}. {node.title} — {count_str} Wörter**")
+        lines = [f"{pad}- **{node.number}. {node.title} — {_fmt_n(node.total)} Wörter**"]
     else:
-        detail = ""
-        if node.children:
-            own_str = f"{node.own:,}".replace(",", ".")
-            detail = f" _(davon {own_str} direkt)_"
-        st.markdown(f"{indent}{node.number} {node.title} — {count_str}{detail}")
+        lines = [f"{pad}- {node.number} {node.title} — {_fmt_n(node.total)}"]
+
+    # Eigenen Fließtext des Kapitels als eigene Zeile zeigen, wenn es
+    # Unterkapitel gibt (sonst "verschwindet" er optisch in der Summe).
+    if node.children and node.own > 0:
+        cpad = "  " * (depth + 1)
+        lines.append(f"{cpad}- _↳ Fließtext direkt — {_fmt_n(node.own)}_")
+
     for child in node.children:
-        _render(child, depth + 1)
+        lines.extend(_md_lines(child, depth + 1))
+    return lines
 
 
 st.subheader("Kapitel im Detail")
 for node in nodes:
-    _render(node)
-    st.markdown("")
+    st.markdown("\n".join(_md_lines(node)))
 
 
 # --------------------------------------------------------------------------- #
@@ -335,6 +341,8 @@ columns = ["Nummer", "Ebene", "Hauptkapitel", "Kapitel", "Woerter_direkt", "Woer
 def _report_lines(node: CountNode, depth: int = 0):
     indent = "    " * depth
     lines = [f"{indent}{node.number} {node.title}: {node.total} Wörter"]
+    if node.children and node.own > 0:
+        lines.append(f"{indent}    Fließtext direkt: {node.own} Wörter")
     for child in node.children:
         lines.extend(_report_lines(child, depth + 1))
     return lines
