@@ -13,8 +13,6 @@ services:
     build: .
     image: blubberzaehler:latest
     container_name: blubberzaehler
-    ports:
-      - "8501:8501"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=4).status==200 else 1)"]
