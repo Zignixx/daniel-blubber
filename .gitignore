@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Claude / lokale Tooling
+.claude/
+
+# Beispiel-/Testdokumente und Exporte
+*.docx
+*.pdf
+*.xlsx
+*.csv
+!requirements.txt

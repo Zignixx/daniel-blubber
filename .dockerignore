@@ -1,0 +1,16 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.DS_Store
+*.md
+!README.md
+.claude/
+tests/
+*.docx
+*.pdf
+*.xlsx
+*.csv

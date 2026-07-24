@@ -1,0 +1,24 @@
+# Blubberzähler 🫧 – Compose-Stack (Portainer-tauglich)
+#
+# Portainer -> Stacks -> Add stack:
+#   - "Repository": dieses Git-Repo angeben, Compose-Pfad docker-compose.yml
+#     (baut das Image direkt aus dem Repo), ODER
+#   - "Web editor": diesen Inhalt einfügen. Dann muss das Image entweder
+#     erreichbar sein oder Portainer baut aus dem Build-Context.
+#
+# Lokal einfach:  docker compose up -d   ->   http://localhost:8501
+
+services:
+  blubberzaehler:
+    build: .
+    image: blubberzaehler:latest
+    container_name: blubberzaehler
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s

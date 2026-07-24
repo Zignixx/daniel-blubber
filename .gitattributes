@@ -1,0 +1,12 @@
+# Zeilenenden normalisieren – wichtig für den Linux-Container
+* text=auto eol=lf
+*.py text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.txt text eol=lf
+*.md text eol=lf
+
+# Binärdateien nicht anfassen
+*.xlsx binary
+*.pdf binary
+*.docx binary
