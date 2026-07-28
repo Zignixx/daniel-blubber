@@ -12,6 +12,7 @@ Start:
 
 import csv
 import io
+import json
 import time
 
 import streamlit as st
@@ -154,6 +155,269 @@ def render_blubber_damage(total_words: int) -> None:
     )
     components.html(html, height=225)
 
+
+# --------------------------------------------------------------------------- #
+# Kapitel-Übersicht: gestapelte Balkenleiste + aufklappbare Baumansicht
+# --------------------------------------------------------------------------- #
+_TREE_HTML = """
+<style>
+  :root {
+    --bz-track: #eceae3;
+    --bz-text: #0b0b0b;
+    --bz-text-secondary: #52514e;
+    --bz-text-muted: #898781;
+    --bz-surface: #fcfcfb;
+    --bz-hover: rgba(11,11,11,0.05);
+    --bz-c0: #86b6ef; --bz-c1: #6da7ec; --bz-c2: #5598e7;
+    --bz-c3: #3987e5; --bz-c4: #2a78d6; --bz-c5: #256abf;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bz-track: #2c2c2a;
+      --bz-text: #ffffff;
+      --bz-text-secondary: #c3c2b7;
+      --bz-text-muted: #898781;
+      --bz-surface: #1a1a19;
+      --bz-hover: rgba(255,255,255,0.07);
+      --bz-c0: #9ec5f4; --bz-c1: #86b6ef; --bz-c2: #6da7ec;
+      --bz-c3: #5598e7; --bz-c4: #3987e5; --bz-c5: #2a78d6;
+    }
+  }
+  html, body { margin: 0; background: transparent; }
+  .bz-wrap {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    color: var(--bz-text);
+  }
+  .bz-c0 { background: var(--bz-c0); } .bz-c1 { background: var(--bz-c1); }
+  .bz-c2 { background: var(--bz-c2); } .bz-c3 { background: var(--bz-c3); }
+  .bz-c4 { background: var(--bz-c4); } .bz-c5 { background: var(--bz-c5); }
+
+  .bz-stackbar { display: flex; height: 34px; border-radius: 8px; background: var(--bz-track); }
+  .bz-seg {
+    position: relative; height: 100%; box-sizing: border-box;
+    border-right: 2px solid var(--bz-surface);
+    display: flex; align-items: center; justify-content: center;
+    transition: filter .12s;
+  }
+  .bz-seg:last-child { border-right: none; }
+  .bz-seg:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+  .bz-seg:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+  .bz-seg:hover { filter: brightness(1.08); }
+  .bz-seg-label { font-size: 11px; font-weight: 600; color: #fff; pointer-events: none; }
+  .bz-seg::after {
+    content: attr(data-tip);
+    position: absolute; top: calc(100% + 8px); left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: var(--bz-text); color: var(--bz-surface);
+    font-size: 12px; padding: 6px 10px; border-radius: 6px;
+    white-space: nowrap; opacity: 0; pointer-events: none;
+    transition: opacity .12s, transform .12s; z-index: 10;
+  }
+  .bz-seg:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .bz-toolbar { display: flex; justify-content: flex-end; gap: 14px; margin: 8px 2px; }
+  .bz-link {
+    font-size: 12px; color: var(--bz-text-secondary); background: none; border: none;
+    cursor: pointer; padding: 0; font-family: inherit;
+  }
+  .bz-link:hover { color: var(--bz-text); text-decoration: underline; }
+
+  .bz-tree { max-height: __TREE_MAX_HEIGHT__px; overflow-y: auto; }
+  .bz-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 6px; border-radius: 6px; min-height: 20px;
+  }
+  .bz-row.bz-has-children { cursor: pointer; }
+  .bz-row:hover { background: var(--bz-hover); }
+  .bz-caret {
+    width: 14px; height: 14px; flex: none; display: flex; align-items: center; justify-content: center;
+    color: var(--bz-text-muted);
+  }
+  .bz-caret svg { transition: transform .15s; }
+  .bz-row.bz-open > .bz-caret svg { transform: rotate(90deg); }
+  .bz-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .bz-title {
+    flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 13.5px;
+  }
+  .bz-meta { display: flex; align-items: center; gap: 10px; flex: none; }
+  .bz-words { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--bz-text-secondary); }
+  .bz-minibar { width: 64px; height: 6px; border-radius: 3px; background: var(--bz-track); overflow: hidden; }
+  .bz-minibar-fill { display: block; height: 100%; border-radius: 3px; }
+  .bz-pct {
+    font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--bz-text-secondary);
+    width: 46px; text-align: right;
+  }
+  .bz-children { display: block; }
+  .bz-children.bz-hidden { display: none; }
+  .bz-own-row { opacity: .65; font-style: italic; }
+  .bz-own-row .bz-title { font-size: 12.5px; }
+</style>
+<div class="bz-wrap">
+  <div class="bz-stackbar" id="bz-bar"></div>
+  <div class="bz-toolbar">
+    <button type="button" class="bz-link" id="bz-expand-all">Alle aufklappen</button>
+    <button type="button" class="bz-link" id="bz-collapse-all">Alle zuklappen</button>
+  </div>
+  <div class="bz-tree" id="bz-tree"></div>
+</div>
+<script>
+(function () {
+  var DATA = __DATA__;
+  var COLOR_COUNT = 6;
+
+  function fmtN(n) { return n.toLocaleString('de-DE'); }
+  function fmtPct(p) {
+    return p.toLocaleString('de-DE', {minimumFractionDigits: 1, maximumFractionDigits: 1}) + ' %';
+  }
+  function labelOf(node, fallback) {
+    return (node.number ? node.number + ' ' : '') + (node.title || fallback);
+  }
+
+  // --- Gestapelte Balkenleiste (ein Segment pro Hauptkapitel) ------------- //
+  var bar = document.getElementById('bz-bar');
+  DATA.forEach(function (node, i) {
+    var seg = document.createElement('div');
+    seg.className = 'bz-seg bz-c' + (i % COLOR_COUNT);
+    seg.style.flexBasis = Math.max(node.pct, 0) + '%';
+    seg.setAttribute('data-tip', labelOf(node, '') + ' · ' + fmtN(node.total) + ' Wörter · ' + fmtPct(node.pct));
+    if (node.pct >= 6) {
+      var lbl = document.createElement('span');
+      lbl.className = 'bz-seg-label';
+      lbl.textContent = node.number || String(i + 1);
+      seg.appendChild(lbl);
+    }
+    bar.appendChild(seg);
+  });
+
+  // --- Baumansicht ---------------------------------------------------------- //
+  var treeRoot = document.getElementById('bz-tree');
+
+  function buildMeta(words, pct, colorIdx) {
+    var meta = document.createElement('span');
+    meta.className = 'bz-meta';
+
+    var wordsEl = document.createElement('span');
+    wordsEl.className = 'bz-words';
+    wordsEl.textContent = fmtN(words);
+    meta.appendChild(wordsEl);
+
+    var mini = document.createElement('span');
+    mini.className = 'bz-minibar';
+    var fill = document.createElement('span');
+    fill.className = 'bz-minibar-fill bz-c' + colorIdx;
+    fill.style.width = Math.min(Math.max(pct, 0), 100) + '%';
+    mini.appendChild(fill);
+    meta.appendChild(mini);
+
+    var pctEl = document.createElement('span');
+    pctEl.className = 'bz-pct';
+    pctEl.textContent = fmtPct(pct);
+    meta.appendChild(pctEl);
+
+    return meta;
+  }
+
+  function buildOwnRow(node, depth, colorIdx) {
+    var row = document.createElement('div');
+    row.className = 'bz-row bz-own-row';
+    row.style.paddingLeft = (depth * 18 + 28) + 'px';
+
+    var title = document.createElement('span');
+    title.className = 'bz-title';
+    title.textContent = 'eigener Text ohne Unterkapitel';
+    row.appendChild(title);
+
+    var meta = document.createElement('span');
+    meta.className = 'bz-meta';
+    var wordsEl = document.createElement('span');
+    wordsEl.className = 'bz-words';
+    wordsEl.textContent = fmtN(node.own);
+    meta.appendChild(wordsEl);
+    row.appendChild(meta);
+
+    return row;
+  }
+
+  function buildRow(node, depth, colorIdx, isMain) {
+    var wrapper = document.createElement('div');
+
+    var row = document.createElement('div');
+    row.className = 'bz-row';
+    row.style.paddingLeft = (depth * 18 + 8) + 'px';
+
+    var hasChildren = node.children && node.children.length > 0;
+    var hasOwnLine = isMain && hasChildren && node.own > 0;
+
+    var caret = document.createElement('span');
+    caret.className = 'bz-caret';
+    if (hasChildren) {
+      caret.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16"><path d="M4 2 L12 8 L4 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+    row.appendChild(caret);
+
+    if (isMain) {
+      var dot = document.createElement('span');
+      dot.className = 'bz-dot bz-c' + colorIdx;
+      row.appendChild(dot);
+    }
+
+    var title = document.createElement('span');
+    title.className = 'bz-title';
+    var labelText = labelOf(node, '(ohne Titel)');
+    title.textContent = labelText;
+    title.title = labelText;
+    row.appendChild(title);
+
+    row.appendChild(buildMeta(node.total, node.pct, colorIdx));
+    wrapper.appendChild(row);
+
+    if (hasChildren) {
+      var childrenBox = document.createElement('div');
+      childrenBox.className = 'bz-children bz-hidden';
+      if (hasOwnLine) {
+        childrenBox.appendChild(buildOwnRow(node, depth + 1, colorIdx));
+      }
+      node.children.forEach(function (child) {
+        childrenBox.appendChild(buildRow(child, depth + 1, colorIdx, false));
+      });
+      wrapper.appendChild(childrenBox);
+
+      row.classList.add('bz-has-children');
+      row.addEventListener('click', function () {
+        row.classList.toggle('bz-open');
+        childrenBox.classList.toggle('bz-hidden');
+      });
+    }
+
+    return wrapper;
+  }
+
+  DATA.forEach(function (node, i) {
+    treeRoot.appendChild(buildRow(node, 0, i % COLOR_COUNT, true));
+  });
+
+  document.getElementById('bz-expand-all').addEventListener('click', function () {
+    treeRoot.querySelectorAll('.bz-has-children').forEach(function (row) {
+      row.classList.add('bz-open');
+    });
+    treeRoot.querySelectorAll('.bz-children').forEach(function (box) {
+      box.classList.remove('bz-hidden');
+    });
+  });
+  document.getElementById('bz-collapse-all').addEventListener('click', function () {
+    treeRoot.querySelectorAll('.bz-has-children').forEach(function (row) {
+      row.classList.remove('bz-open');
+    });
+    treeRoot.querySelectorAll('.bz-children').forEach(function (box) {
+      box.classList.add('bz-hidden');
+    });
+  });
+})();
+</script>
+"""
+
+
 st.title("Blubberzähler 🫧")
 st.caption(
     "Wörter zählen nach formatierten Kapiteln – ohne Klammer-Zitate, ohne Tabellen."
@@ -288,33 +552,44 @@ render_blubber_damage(total)
 st.metric("Gesamtwortzahl (Auswahl)", f"{total:,}".replace(",", "."))
 
 
-def _fmt_n(n: int) -> str:
-    return f"{n:,}".replace(",", ".")
+def _pct(part: int, whole: int) -> float:
+    return round((part / whole * 100), 1) if whole else 0.0
 
 
-def _md_lines(node: CountNode, depth: int = 0):
-    """Erzeugt verschachtelte Markdown-Listenzeilen für ein Kapitel."""
-    pad = "  " * depth  # 2 Leerzeichen pro Ebene -> saubere Markdown-Liste
-    heading = _chapter_label(node.number, node.title)
-    if depth == 0:
-        lines = [f"{pad}- **{heading} — {_fmt_n(node.total)} Wörter**"]
-    else:
-        lines = [f"{pad}- {heading} — {_fmt_n(node.total)}"]
+def _node_to_dict(node: CountNode, main_total: int, selection_total: int, is_main: bool) -> dict:
+    """Baumknoten als JSON-taugliches dict, inkl. vorberechnetem Prozentanteil.
 
-    # Eigenen Fließtext des Kapitels als eigene Zeile zeigen, wenn es
-    # Unterkapitel gibt (sonst "verschwindet" er optisch in der Summe).
-    if node.children and node.own > 0:
-        cpad = "  " * (depth + 1)
-        lines.append(f"{cpad}- _↳ Fließtext direkt — {_fmt_n(node.own)}_")
-
-    for child in node.children:
-        lines.extend(_md_lines(child, depth + 1))
-    return lines
+    Hauptkapitel (``is_main``): Anteil an ``selection_total`` (der Auswahl).
+    Alle Unterkapitel, egal auf welcher Tiefe: Anteil am eigenen Hauptkapitel
+    (``main_total``), nicht am jeweils direkt übergeordneten Abschnitt.
+    """
+    pct = _pct(node.total, selection_total if is_main else main_total)
+    effective_main_total = node.total if is_main else main_total
+    return {
+        "number": node.number,
+        "title": node.title,
+        "own": node.own,
+        "total": node.total,
+        "pct": pct,
+        "children": [
+            _node_to_dict(child, effective_main_total, selection_total, False)
+            for child in node.children
+        ],
+    }
 
 
 st.subheader("Kapitel im Detail")
-for node in nodes:
-    st.markdown("\n".join(_md_lines(node)))
+
+tree_data = [_node_to_dict(node, 0, total, True) for node in nodes]
+tree_json = json.dumps(tree_data, ensure_ascii=False).replace("</", "<\\/")
+tree_max_height = min(420, max(140, len(nodes) * 42 + 60))
+tree_html = (
+    _TREE_HTML
+    .replace("__DATA__", tree_json)
+    .replace("__TREE_MAX_HEIGHT__", str(tree_max_height))
+)
+component_height = 34 + 34 + tree_max_height + 40
+components.html(tree_html, height=component_height, scrolling=False)
 
 
 # --------------------------------------------------------------------------- #
