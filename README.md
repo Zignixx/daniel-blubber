@@ -8,6 +8,8 @@ formatierten **Kapiteln/Überschriften**, mit Ausschluss von **Harvard-Zitaten
 
 - **Upload** von **Word (.docx)** oder **PDF**
 - **Kapitelauswahl**: alle Kapitel, ein Bereich (von–bis) oder Einzelauswahl
+- **Originale Kapitelnummern**: Die in Word/PDF sichtbaren Bezeichnungen
+  (z. B. `Kapitel 3`, `3.2`) werden in Auswahl, Ergebnis und Export übernommen
 - **Checkboxen**:
   - Überschriften mitzählen (ja/nein)
   - Klammern mitzählen (ja/nein) – Harvard-Zitate
@@ -68,7 +70,9 @@ Portainer den Container-Status korrekt anzeigt.
 
 - **Word (.docx)** ist der Idealfall: Überschriften werden über die
   Formatvorlage (`Überschrift 1`, `Überschrift 2`, …) erkannt, Tabellen und
-  Fußnoten sind im Dokument klar markiert.
+  Fußnoten sind im Dokument klar markiert. Automatische Word-Nummerierungen
+  werden aus der Gliederungsdefinition des Dokuments gelesen; unnummerierte
+  Überschriften erhalten keine künstliche Nummer.
 - **PDF** hat keine verlässlichen Überschriften-Formatvorlagen. Die Erkennung
   ist **heuristisch** (Schriftgröße, Fettung, Nummerierung wie „2.1") und daher
   nicht immer perfekt. Für exakte Zahlen empfiehlt sich ein `.docx`.

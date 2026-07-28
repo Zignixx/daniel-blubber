@@ -228,7 +228,13 @@ opts = CountOptions(
 # --------------------------------------------------------------------------- #
 st.subheader("Kapitel-Auswahl")
 
-labels = [f"{i + 1}. {t}" for i, t in enumerate(main_titles)]
+
+def _chapter_label(number: str, title: str) -> str:
+    """Kapitel genau mit der aus dem Dokument gelesenen Nummer anzeigen."""
+    return f"{number} {title}".strip()
+
+
+labels = [_chapter_label(ch.number, ch.title) for ch in root.children]
 mode = st.radio(
     "Was soll gezählt werden?",
     ["Alle Kapitel", "Bereich (von–bis)", "Einzelauswahl"],
@@ -240,16 +246,29 @@ selected_indices = list(range(len(main_titles)))
 if mode == "Bereich (von–bis)":
     c1, c2 = st.columns(2)
     with c1:
-        start = st.selectbox("Von Kapitel", labels, index=0)
+        i_start = st.selectbox(
+            "Von Kapitel",
+            range(len(labels)),
+            index=0,
+            format_func=lambda index: labels[index],
+        )
     with c2:
-        end = st.selectbox("Bis Kapitel", labels, index=len(labels) - 1)
-    i_start, i_end = labels.index(start), labels.index(end)
+        i_end = st.selectbox(
+            "Bis Kapitel",
+            range(len(labels)),
+            index=len(labels) - 1,
+            format_func=lambda index: labels[index],
+        )
     if i_start > i_end:
         i_start, i_end = i_end, i_start
     selected_indices = list(range(i_start, i_end + 1))
 elif mode == "Einzelauswahl":
-    chosen = st.multiselect("Kapitel wählen", labels, default=labels)
-    selected_indices = [labels.index(l) for l in chosen]
+    selected_indices = st.multiselect(
+        "Kapitel wählen",
+        range(len(labels)),
+        default=list(range(len(labels))),
+        format_func=lambda index: labels[index],
+    )
 
 if not selected_indices:
     st.warning("Bitte mindestens ein Kapitel auswählen.")
@@ -276,10 +295,11 @@ def _fmt_n(n: int) -> str:
 def _md_lines(node: CountNode, depth: int = 0):
     """Erzeugt verschachtelte Markdown-Listenzeilen für ein Kapitel."""
     pad = "  " * depth  # 2 Leerzeichen pro Ebene -> saubere Markdown-Liste
+    heading = _chapter_label(node.number, node.title)
     if depth == 0:
-        lines = [f"{pad}- **{node.number}. {node.title} — {_fmt_n(node.total)} Wörter**"]
+        lines = [f"{pad}- **{heading} — {_fmt_n(node.total)} Wörter**"]
     else:
-        lines = [f"{pad}- {node.number} {node.title} — {_fmt_n(node.total)}"]
+        lines = [f"{pad}- {heading} — {_fmt_n(node.total)}"]
 
     # Eigenen Fließtext des Kapitels als eigene Zeile zeigen, wenn es
     # Unterkapitel gibt (sonst "verschwindet" er optisch in der Summe).
@@ -340,7 +360,8 @@ columns = ["Nummer", "Ebene", "Hauptkapitel", "Kapitel", "Woerter_direkt", "Woer
 # ---- TXT ---------------------------------------------------------------- #
 def _report_lines(node: CountNode, depth: int = 0):
     indent = "    " * depth
-    lines = [f"{indent}{node.number} {node.title}: {node.total} Wörter"]
+    heading = _chapter_label(node.number, node.title)
+    lines = [f"{indent}{heading}: {node.total} Wörter"]
     if node.children and node.own > 0:
         lines.append(f"{indent}    Fließtext direkt: {node.own} Wörter")
     for child in node.children:
