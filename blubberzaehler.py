@@ -1,6 +1,6 @@
 """
-Blubberzähler 🫧
-================
+CiteCut
+=======
 
 Streamlit-Oberfläche: Word/PDF hochladen, Kapitel auswählen, Wörter zählen –
 mit Ausschluss von Klammer-Zitaten und Tabellen sowie Optionen für
@@ -27,137 +27,11 @@ from blubber_core import (
 )
 
 
-st.set_page_config(page_title="Blubberzähler 🫧", page_icon="🫧", layout="centered")
+st.set_page_config(page_title="CiteCut", page_icon="✂️", layout="centered")
 
 
 # --------------------------------------------------------------------------- #
-# Blubber-Animation + "-XXXX tokens" Damage-Effekt (nur zum Spaß 🫧💥)
-# --------------------------------------------------------------------------- #
-_BLUBBER_HTML = """
-<style>
-  .blubber-stage {
-    position: relative; height: 210px; width: 100%;
-    border-radius: 16px; overflow: hidden;
-    background: radial-gradient(120% 140% at 50% 120%,
-      rgba(31,111,235,0.22) 0%, rgba(31,111,235,0.06) 45%, rgba(31,111,235,0) 70%);
-    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
-  }
-  .bubble {
-    position: absolute; bottom: -40px; border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%,
-      rgba(255,255,255,0.9), rgba(120,190,255,0.55) 45%, rgba(31,111,235,0.15) 70%);
-    box-shadow: inset 0 0 6px rgba(255,255,255,0.6), 0 0 8px rgba(120,190,255,0.35);
-    animation-name: rise; animation-timing-function: ease-in;
-    animation-iteration-count: infinite; opacity: 0;
-  }
-  @keyframes rise {
-    0%   { transform: translateY(0) scale(0.6); opacity: 0; }
-    12%  { opacity: 0.9; }
-    70%  { opacity: 0.8; }
-    100% { transform: translateY(-250px) scale(1.15); opacity: 0; }
-  }
-  .damage {
-    position: absolute; left: 50%; top: 46%;
-    transform: translate(-50%, -50%);
-    font-weight: 900; font-size: 46px; letter-spacing: -1px;
-    color: #ffd23f;
-    text-shadow:
-      -2px -2px 0 #b3001b, 2px -2px 0 #b3001b,
-      -2px  2px 0 #b3001b, 2px  2px 0 #b3001b,
-       0 6px 14px rgba(179,0,27,0.55);
-    animation: dmg 1.9s cubic-bezier(.2,.9,.25,1) forwards;
-    white-space: nowrap;
-  }
-  @keyframes dmg {
-    0%   { transform: translate(-50%, 10%)  scale(0.3) rotate(-8deg); opacity: 0; }
-    18%  { transform: translate(-50%, -35%) scale(1.35) rotate(3deg); opacity: 1; }
-    32%  { transform: translate(-50%, -55%) scale(1.0)  rotate(-2deg); opacity: 1; }
-    100% { transform: translate(-50%, -160%) scale(0.95) rotate(0deg); opacity: 0; }
-  }
-  .crit {
-    position: absolute; font-weight: 800; font-size: 20px; color: #ff6b6b;
-    text-shadow: 0 2px 6px rgba(0,0,0,0.4); opacity: 0;
-    animation: crit 1.9s ease-out forwards; white-space: nowrap;
-  }
-  @keyframes crit {
-    0%   { transform: translateY(20px) scale(0.5); opacity: 0; }
-    25%  { opacity: 1; }
-    100% { transform: translateY(-90px) scale(1); opacity: 0; }
-  }
-  .hpbar-wrap {
-    position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
-    width: 78%; text-align: left;
-  }
-  .hpbar-label {
-    font-size: 12px; font-weight: 700; margin-bottom: 4px;
-    color: #6b7280; letter-spacing: 0.5px; text-transform: uppercase;
-    display: flex; justify-content: space-between;
-  }
-  .hpbar {
-    height: 14px; border-radius: 8px; overflow: hidden;
-    background: rgba(120,120,120,0.25);
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.25);
-  }
-  .hpfill {
-    height: 100%; width: 100%;
-    background: linear-gradient(90deg, #22c55e, #eab308 55%, #ef4444);
-    animation: drain 1.4s ease-out forwards;
-  }
-  @keyframes drain {
-    from { width: 100%; }
-    to   { width: var(--target, 60%); }
-  }
-  @media (prefers-color-scheme: dark) { .hpbar-label { color: #9aa4b2; } }
-</style>
-<div class="blubber-stage">
-  __BUBBLES__
-  <span class="crit" style="left:30%; top:60%; animation-delay:.15s">blubb!</span>
-  <span class="crit" style="left:64%; top:64%; animation-delay:.35s">blubb blubb!</span>
-  <div class="damage">-__TOKENS__ tokens</div>
-  <div class="hpbar-wrap">
-    <div class="hpbar-label"><span>🧠 AI-Tokens</span><span>__REMAIN__ übrig</span></div>
-    <div class="hpbar"><div class="hpfill" style="--target: __PCT__%"></div></div>
-  </div>
-</div>
-"""
-
-# Feste Blasen-Positionen (kein Zufall nötig): left%, größe px, delay s, dauer s
-_BUBBLES = [
-    (6, 22, 0.0, 3.4), (14, 12, 0.9, 2.6), (23, 28, 0.3, 4.0),
-    (34, 10, 1.4, 2.2), (44, 18, 0.6, 3.1), (52, 14, 1.1, 2.8),
-    (61, 26, 0.2, 3.9), (70, 12, 1.6, 2.4), (79, 20, 0.8, 3.3),
-    (88, 16, 0.4, 2.9), (94, 10, 1.2, 2.5),
-]
-
-
-def _fmt(n: int) -> str:
-    return f"{n:,}".replace(",", ".")
-
-
-def render_blubber_damage(total_words: int) -> None:
-    """Zeigt die Blubber-Animation samt "-tokens"-Damage-Effekt."""
-    tokens = max(1, round(total_words / 0.75))          # grobe Token-Schätzung
-    energy_max = max(tokens * 4, 8000)                   # "HP"-Pool
-    pct = max(8, round(100 * (energy_max - tokens) / energy_max))
-    remaining = _fmt(energy_max - tokens)
-
-    bubbles = "".join(
-        f'<span class="bubble" style="left:{l}%;width:{s}px;height:{s}px;'
-        f'animation-delay:{d}s;animation-duration:{u}s"></span>'
-        for (l, s, d, u) in _BUBBLES
-    )
-    html = (
-        _BLUBBER_HTML
-        .replace("__BUBBLES__", bubbles)
-        .replace("__TOKENS__", _fmt(tokens))
-        .replace("__PCT__", str(pct))
-        .replace("__REMAIN__", remaining)
-    )
-    components.html(html, height=225)
-
-
-# --------------------------------------------------------------------------- #
-# Kapitel-Übersicht: gestapelte Balkenleiste + aufklappbare Baumansicht
+# Kapitel-Übersicht: funnel-artige Balkenleiste + aufklappbare Baumansicht
 # --------------------------------------------------------------------------- #
 _TREE_HTML = """
 <style>
@@ -167,9 +41,10 @@ _TREE_HTML = """
     --bz-text-secondary: #52514e;
     --bz-text-muted: #898781;
     --bz-surface: #fcfcfb;
-    --bz-hover: rgba(11,11,11,0.05);
-    --bz-c0: #86b6ef; --bz-c1: #6da7ec; --bz-c2: #5598e7;
-    --bz-c3: #3987e5; --bz-c4: #2a78d6; --bz-c5: #256abf;
+    --bz-hover: rgba(11,11,11,0.06);
+    --bz-guide: rgba(11,11,11,0.20);
+    --bz-c0: #2a78d6; --bz-c1: #eb6834; --bz-c2: #1baf7a; --bz-c3: #eda100;
+    --bz-c4: #e87ba4; --bz-c5: #008300; --bz-c6: #4a3aa7; --bz-c7: #e34948;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -178,9 +53,10 @@ _TREE_HTML = """
       --bz-text-secondary: #c3c2b7;
       --bz-text-muted: #898781;
       --bz-surface: #1a1a19;
-      --bz-hover: rgba(255,255,255,0.07);
-      --bz-c0: #9ec5f4; --bz-c1: #86b6ef; --bz-c2: #6da7ec;
-      --bz-c3: #5598e7; --bz-c4: #3987e5; --bz-c5: #2a78d6;
+      --bz-hover: rgba(255,255,255,0.09);
+      --bz-guide: rgba(255,255,255,0.20);
+      --bz-c0: #3987e5; --bz-c1: #d95926; --bz-c2: #199e70; --bz-c3: #c98500;
+      --bz-c4: #d55181; --bz-c5: #008300; --bz-c6: #9085e9; --bz-c7: #e66767;
     }
   }
   html, body { margin: 0; background: transparent; }
@@ -191,20 +67,17 @@ _TREE_HTML = """
   .bz-c0 { background: var(--bz-c0); } .bz-c1 { background: var(--bz-c1); }
   .bz-c2 { background: var(--bz-c2); } .bz-c3 { background: var(--bz-c3); }
   .bz-c4 { background: var(--bz-c4); } .bz-c5 { background: var(--bz-c5); }
+  .bz-c6 { background: var(--bz-c6); } .bz-c7 { background: var(--bz-c7); }
 
-  .bz-stackbar { display: flex; height: 34px; border-radius: 8px; background: var(--bz-track); }
-  .bz-seg {
-    position: relative; height: 100%; box-sizing: border-box;
-    border-right: 2px solid var(--bz-surface);
-    display: flex; align-items: center; justify-content: center;
-    transition: filter .12s;
+  .bz-stackbar {
+    position: relative; height: __BAR_HEIGHT__px; overflow: visible;
   }
-  .bz-seg:last-child { border-right: none; }
-  .bz-seg:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
-  .bz-seg:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
-  .bz-seg:hover { filter: brightness(1.08); }
-  .bz-seg-label { font-size: 11px; font-weight: 600; color: #fff; pointer-events: none; }
-  .bz-seg::after {
+  .bz-stackbar svg { display: block; width: 100%; height: 100%; }
+  .bz-stackbar path { transition: filter .12s; }
+  .bz-seg-hit {
+    position: absolute; top: 0; height: 100%; cursor: default;
+  }
+  .bz-seg-hit::after {
     content: attr(data-tip);
     position: absolute; top: calc(100% + 8px); left: 50%;
     transform: translateX(-50%) translateY(-4px);
@@ -213,7 +86,7 @@ _TREE_HTML = """
     white-space: nowrap; opacity: 0; pointer-events: none;
     transition: opacity .12s, transform .12s; z-index: 10;
   }
-  .bz-seg:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .bz-seg-hit:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   .bz-toolbar { display: flex; justify-content: flex-end; gap: 14px; margin: 8px 2px; }
   .bz-link {
@@ -222,34 +95,66 @@ _TREE_HTML = """
   }
   .bz-link:hover { color: var(--bz-text); text-decoration: underline; }
 
-  .bz-tree { max-height: __TREE_MAX_HEIGHT__px; overflow-y: auto; }
-  .bz-row {
+  .bz-col-headers {
     display: flex; align-items: center; gap: 8px;
+    padding: 0 6px 4px; margin-top: 4px;
+  }
+  .bz-col-headers-spacer { flex: 1 1 auto; }
+  .bz-col-headers-meta {
+    display: flex; align-items: center; gap: 10px; flex: none;
+    font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--bz-text-muted);
+  }
+  .bz-col-header-anteil { width: 120px; }
+  .bz-col-header-woerter { text-align: right; }
+
+  .bz-tree { position: relative; overflow: visible; }
+  .bz-hover-highlight {
+    position: absolute; top: 0; left: 0; width: 0; height: 0;
+    border-radius: 6px; background: var(--bz-hover);
+    opacity: 0; pointer-events: none; z-index: 5;
+    transition: opacity .12s ease,
+      top .16s cubic-bezier(.2,.8,.2,1), left .16s cubic-bezier(.2,.8,.2,1),
+      width .16s cubic-bezier(.2,.8,.2,1), height .16s cubic-bezier(.2,.8,.2,1);
+  }
+  .bz-hover-highlight.bz-hl-visible { opacity: 1; }
+  .bz-row {
+    position: relative; display: flex; align-items: center; gap: 8px;
     padding: 7px 6px; border-radius: 6px; min-height: 20px;
   }
   .bz-row.bz-has-children { cursor: pointer; }
-  .bz-row:hover { background: var(--bz-hover); }
-  .bz-caret {
-    width: 14px; height: 14px; flex: none; display: flex; align-items: center; justify-content: center;
-    color: var(--bz-text-muted);
+
+  /* Baum-Verbindungslinien: eine SVG-Ebene verbindet die Knoten-Kreise direkt
+     Kreis-zu-Kreis (Mittelpunkt zu Mittelpunkt), analog zur "animated files"-
+     Optik. Die Hauptkapitel-Linie läuft durch alle Hauptkapitel-Kreise und
+     verzweigt an jedem Kreis in dessen Unterkapitel. */
+  .bz-connectors { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; overflow: visible; }
+  .bz-edge { fill: none; stroke: var(--bz-guide); stroke-width: 1.75px; }
+
+  .bz-node {
+    position: relative; z-index: 2; flex: none;
+    width: 14px; height: 14px;
+    display: flex; align-items: center; justify-content: center;
   }
-  .bz-caret svg { transition: transform .15s; }
-  .bz-row.bz-open > .bz-caret svg { transform: rotate(90deg); }
-  .bz-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .bz-node.bz-expandable { border-radius: 50%; }
+  .bz-node-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .bz-node svg { transition: transform .18s cubic-bezier(.2,.8,.2,1); }
+  .bz-row.bz-open > .bz-node svg { transform: rotate(90deg); }
   .bz-title {
     flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font-size: 13.5px;
   }
   .bz-meta { display: flex; align-items: center; gap: 10px; flex: none; }
   .bz-words { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--bz-text-secondary); }
+  .bz-words-strong { font-weight: 700; color: var(--bz-text); }
   .bz-minibar { width: 64px; height: 6px; border-radius: 3px; background: var(--bz-track); overflow: hidden; }
   .bz-minibar-fill { display: block; height: 100%; border-radius: 3px; }
   .bz-pct {
     font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--bz-text-secondary);
     width: 46px; text-align: right;
   }
-  .bz-children { display: block; }
-  .bz-children.bz-hidden { display: none; }
+
+  .bz-children { overflow: hidden; transition: height .2s cubic-bezier(.2,.8,.2,1); }
   .bz-own-row { opacity: .65; font-style: italic; }
   .bz-own-row .bz-title { font-size: 12.5px; }
 </style>
@@ -259,12 +164,22 @@ _TREE_HTML = """
     <button type="button" class="bz-link" id="bz-expand-all">Alle aufklappen</button>
     <button type="button" class="bz-link" id="bz-collapse-all">Alle zuklappen</button>
   </div>
-  <div class="bz-tree" id="bz-tree"></div>
+  <div class="bz-col-headers">
+    <span class="bz-col-headers-spacer"></span>
+    <span class="bz-col-headers-meta">
+      <span class="bz-col-header-anteil">Anteil</span>
+      <span class="bz-col-header-woerter">Wörter</span>
+    </span>
+  </div>
+  <div class="bz-tree" id="bz-tree">
+    <svg class="bz-connectors" id="bz-connectors"></svg>
+    <div class="bz-hover-highlight" id="bz-hl"></div>
+  </div>
 </div>
 <script>
 (function () {
   var DATA = __DATA__;
-  var COLOR_COUNT = 6;
+  var COLOR_COUNT = 8;
 
   function fmtN(n) { return n.toLocaleString('de-DE'); }
   function fmtPct(p) {
@@ -274,33 +189,95 @@ _TREE_HTML = """
     return (node.number ? node.number + ' ' : '') + (node.title || fallback);
   }
 
-  // --- Gestapelte Balkenleiste (ein Segment pro Hauptkapitel) ------------- //
+  // --- Funnel-artige Balkenleiste (ein Segment pro Hauptkapitel, Wellenform, --- //
+  // --- Reihenfolge bleibt die Dokumentreihenfolge, keine Sortierung)       --- //
   var bar = document.getElementById('bz-bar');
+  var n = DATA.length;
+  var VW = 1000, VH = 34; // virtuerer Koordinatenraum, wird per SVG auf 100% gestreckt
+  var gap = 3;
+  var segW = (VW - gap * (n - 1)) / n;
+
+  var svgNS = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + VW + ' ' + VH);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  bar.appendChild(svg);
+
+  function segPath(normStart, normEnd, x, w) {
+    var my = VH / 2;
+    var h0 = Math.max(normStart, 0.04) * VH * 0.46;
+    var h1 = Math.max(normEnd, 0.04) * VH * 0.46;
+    var cx = w * 0.55;
+    var top = 'M ' + x + ' ' + (my - h0) +
+      ' C ' + (x + cx) + ' ' + (my - h0) + ', ' + (x + w - cx) + ' ' + (my - h1) + ', ' + (x + w) + ' ' + (my - h1);
+    var bot = 'L ' + (x + w) + ' ' + (my + h1) +
+      ' C ' + (x + w - cx) + ' ' + (my + h1) + ', ' + (x + cx) + ' ' + (my + h0) + ', ' + x + ' ' + (my + h0);
+    return top + ' ' + bot + ' Z';
+  }
+
+  // Auf das größte Kapitel der Auswahl normieren (nicht auf 100%), damit die
+  // Ausschläge zwischen den Kapiteln deutlicher sichtbar werden.
+  var maxPct = Math.max.apply(null, DATA.map(function (d) { return d.pct; })) || 1;
+
+  var xCursor = 0;
   DATA.forEach(function (node, i) {
-    var seg = document.createElement('div');
-    seg.className = 'bz-seg bz-c' + (i % COLOR_COUNT);
-    seg.style.flexBasis = Math.max(node.pct, 0) + '%';
-    seg.setAttribute('data-tip', labelOf(node, '') + ' · ' + fmtN(node.total) + ' Wörter · ' + fmtPct(node.pct));
-    if (node.pct >= 6) {
-      var lbl = document.createElement('span');
-      lbl.className = 'bz-seg-label';
-      lbl.textContent = node.number || String(i + 1);
-      seg.appendChild(lbl);
-    }
-    bar.appendChild(seg);
+    var norm = Math.max(node.pct, 0) / maxPct;
+    var normNext = i + 1 < n ? Math.max(DATA[i + 1].pct, 0) / maxPct : norm;
+
+    var path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', segPath(norm, normNext, xCursor, segW));
+    path.style.fill = 'var(--bz-c' + (i % COLOR_COUNT) + ')';
+    svg.appendChild(path);
+
+    var hit = document.createElement('div');
+    hit.className = 'bz-seg-hit';
+    hit.style.left = (xCursor / VW * 100) + '%';
+    hit.style.width = (segW / VW * 100) + '%';
+    hit.setAttribute('data-tip', labelOf(node, '') + ' · ' + fmtN(node.total) + ' Wörter · ' + fmtPct(node.pct));
+    hit.addEventListener('mouseenter', function () { path.style.filter = 'brightness(1.12)'; });
+    hit.addEventListener('mouseleave', function () { path.style.filter = ''; });
+    bar.appendChild(hit);
+
+    xCursor += segW + gap;
   });
 
   // --- Baumansicht ---------------------------------------------------------- //
   var treeRoot = document.getElementById('bz-tree');
+  var highlight = document.getElementById('bz-hl');
+  var connectorsSvg = document.getElementById('bz-connectors');
+  var NODE_COL = 20; // Einrückung pro Ebene
+  var edges = []; // { from: Kreis-Element, to: Kreis-Element }
+
+  // Wandernde Hover-Hervorhebung (analog zur "FilesHighlight" des animierten
+  // Datei-Baum-Primitives): eine einzelne Box gleitet zur jeweils gehoverten
+  // Zeile, statt dass jede Zeile einzeln ihren Hintergrund umschaltet. Sie
+  // beginnt am Knoten-Kreis der Zeile (nicht am linken Rand des Baums), damit
+  // tiefer eingerückte Unterkapitel eine entsprechend kürzere, eingerückte
+  // Markierung bekommen statt der vollen Zeilenbreite.
+  function showHighlight(row) {
+    var treeRect = treeRoot.getBoundingClientRect();
+    var rowRect = row.getBoundingClientRect();
+    var circle = row.querySelector('.bz-node');
+    var circleRect = circle ? circle.getBoundingClientRect() : rowRect;
+    var left = circleRect.left - 6;
+    highlight.style.top = (rowRect.top - treeRect.top) + 'px';
+    highlight.style.left = (left - treeRect.left) + 'px';
+    highlight.style.width = (rowRect.right - left) + 'px';
+    highlight.style.height = rowRect.height + 'px';
+    highlight.classList.add('bz-hl-visible');
+  }
+  treeRoot.addEventListener('mouseleave', function () {
+    highlight.classList.remove('bz-hl-visible');
+  });
 
   function buildMeta(words, pct, colorIdx) {
     var meta = document.createElement('span');
     meta.className = 'bz-meta';
 
-    var wordsEl = document.createElement('span');
-    wordsEl.className = 'bz-words';
-    wordsEl.textContent = fmtN(words);
-    meta.appendChild(wordsEl);
+    var pctEl = document.createElement('span');
+    pctEl.className = 'bz-pct';
+    pctEl.textContent = fmtPct(pct);
+    meta.appendChild(pctEl);
 
     var mini = document.createElement('span');
     mini.className = 'bz-minibar';
@@ -310,33 +287,75 @@ _TREE_HTML = """
     mini.appendChild(fill);
     meta.appendChild(mini);
 
-    var pctEl = document.createElement('span');
-    pctEl.className = 'bz-pct';
-    pctEl.textContent = fmtPct(pct);
-    meta.appendChild(pctEl);
+    var wordsEl = document.createElement('span');
+    wordsEl.className = 'bz-words bz-words-strong';
+    wordsEl.textContent = fmtN(words);
+    meta.appendChild(wordsEl);
 
     return meta;
+  }
+
+  function buildWordsOnlyMeta(words) {
+    var meta = document.createElement('span');
+    meta.className = 'bz-meta';
+    var wordsEl = document.createElement('span');
+    wordsEl.className = 'bz-words';
+    wordsEl.textContent = fmtN(words);
+    meta.appendChild(wordsEl);
+    return meta;
+  }
+
+  // Jede Zeile bekommt denselben Kreis-Knoten: aufklappbare Kapitel zeigen
+  // einen gefüllten, drehbaren Pfeil; Blätter nur einen kleinen Punkt. Beide
+  // sitzen in derselben 14px-Spur, damit die Mittelpunkte exakt fluchten.
+  function buildNode(colorIdx, expandable) {
+    var node = document.createElement('span');
+    node.className = 'bz-node' + (expandable ? ' bz-expandable' : '');
+    if (expandable) {
+      node.style.background = 'var(--bz-c' + colorIdx + ')';
+      node.innerHTML = '<svg width="7" height="7" viewBox="0 0 16 16"><path d="M4.5 3 L11.5 8 L4.5 13 Z" fill="#fff"/></svg>';
+    } else {
+      var dot = document.createElement('span');
+      dot.className = 'bz-node-dot bz-c' + colorIdx;
+      node.appendChild(dot);
+    }
+    return node;
   }
 
   function buildOwnRow(node, depth, colorIdx) {
     var row = document.createElement('div');
     row.className = 'bz-row bz-own-row';
-    row.style.paddingLeft = (depth * 18 + 28) + 'px';
+    row.style.paddingLeft = (depth * NODE_COL + 6) + 'px';
+
+    var circle = buildNode(colorIdx, false);
+    row.appendChild(circle);
 
     var title = document.createElement('span');
     title.className = 'bz-title';
     title.textContent = 'eigener Text ohne Unterkapitel';
     row.appendChild(title);
 
-    var meta = document.createElement('span');
-    meta.className = 'bz-meta';
-    var wordsEl = document.createElement('span');
-    wordsEl.className = 'bz-words';
-    wordsEl.textContent = fmtN(node.own);
-    meta.appendChild(wordsEl);
-    row.appendChild(meta);
+    row.appendChild(buildWordsOnlyMeta(node.own));
+    row.addEventListener('mouseenter', function () { showHighlight(row); });
 
-    return row;
+    return { wrapper: row, circle: circle };
+  }
+
+  // Animiertes Auf-/Zuklappen (Höhen-Übergang statt hartem display:none/block).
+  function setChildrenOpen(childrenBox, open) {
+    if (open) {
+      childrenBox.style.height = childrenBox.scrollHeight + 'px';
+      var onEnd = function (e) {
+        if (e.propertyName !== 'height') return;
+        childrenBox.style.height = 'auto';
+        childrenBox.removeEventListener('transitionend', onEnd);
+      };
+      childrenBox.addEventListener('transitionend', onEnd);
+    } else {
+      childrenBox.style.height = childrenBox.scrollHeight + 'px';
+      childrenBox.getBoundingClientRect(); // Reflow erzwingen, damit der Übergang startet
+      childrenBox.style.height = '0px';
+    }
   }
 
   function buildRow(node, depth, colorIdx, isMain) {
@@ -344,23 +363,14 @@ _TREE_HTML = """
 
     var row = document.createElement('div');
     row.className = 'bz-row';
-    row.style.paddingLeft = (depth * 18 + 8) + 'px';
+    row.style.paddingLeft = (depth * NODE_COL + 6) + 'px';
+    row.addEventListener('mouseenter', function () { showHighlight(row); });
 
     var hasChildren = node.children && node.children.length > 0;
     var hasOwnLine = isMain && hasChildren && node.own > 0;
 
-    var caret = document.createElement('span');
-    caret.className = 'bz-caret';
-    if (hasChildren) {
-      caret.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16"><path d="M4 2 L12 8 L4 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    }
-    row.appendChild(caret);
-
-    if (isMain) {
-      var dot = document.createElement('span');
-      dot.className = 'bz-dot bz-c' + colorIdx;
-      row.appendChild(dot);
-    }
+    var circle = buildNode(colorIdx, hasChildren);
+    row.appendChild(circle);
 
     var title = document.createElement('span');
     title.className = 'bz-title';
@@ -369,56 +379,139 @@ _TREE_HTML = """
     title.title = labelText;
     row.appendChild(title);
 
-    row.appendChild(buildMeta(node.total, node.pct, colorIdx));
+    row.appendChild(isMain ? buildMeta(node.total, node.pct, colorIdx) : buildWordsOnlyMeta(node.total));
     wrapper.appendChild(row);
 
     if (hasChildren) {
       var childrenBox = document.createElement('div');
-      childrenBox.className = 'bz-children bz-hidden';
+      childrenBox.className = 'bz-children'; // Standardmäßig aufgeklappt.
+      var childCircles = [];
+
       if (hasOwnLine) {
-        childrenBox.appendChild(buildOwnRow(node, depth + 1, colorIdx));
+        var ownResult = buildOwnRow(node, depth + 1, colorIdx);
+        childrenBox.appendChild(ownResult.wrapper);
+        childCircles.push(ownResult.circle);
       }
       node.children.forEach(function (child) {
-        childrenBox.appendChild(buildRow(child, depth + 1, colorIdx, false));
+        var childResult = buildRow(child, depth + 1, colorIdx, false);
+        childrenBox.appendChild(childResult.wrapper);
+        childCircles.push(childResult.circle);
       });
       wrapper.appendChild(childrenBox);
 
-      row.classList.add('bz-has-children');
+      // Verzweigung vom Eltern-Kreis zum ersten Kind, danach Kreis-zu-Kreis
+      // die Geschwister entlang.
+      edges.push({ from: circle, to: childCircles[0] });
+      for (var k = 0; k < childCircles.length - 1; k++) {
+        edges.push({ from: childCircles[k], to: childCircles[k + 1] });
+      }
+
+      row.classList.add('bz-has-children', 'bz-open');
       row.addEventListener('click', function () {
+        var opening = !row.classList.contains('bz-open');
         row.classList.toggle('bz-open');
-        childrenBox.classList.toggle('bz-hidden');
+        setChildrenOpen(childrenBox, opening);
+        animateConnectors();
       });
     }
 
-    return wrapper;
+    return { wrapper: wrapper, circle: circle };
   }
 
+  var mainCircles = [];
   DATA.forEach(function (node, i) {
-    treeRoot.appendChild(buildRow(node, 0, i % COLOR_COUNT, true));
+    var result = buildRow(node, 0, i % COLOR_COUNT, true);
+    treeRoot.appendChild(result.wrapper);
+    mainCircles.push(result.circle);
   });
+  // Die "Hauptlinie": verbindet alle Hauptkapitel-Kreise nacheinander.
+  for (var m = 0; m < mainCircles.length - 1; m++) {
+    edges.push({ from: mainCircles[m], to: mainCircles[m + 1] });
+  }
+
+  // Liegt ein Knoten innerhalb eines gerade eingeklappten Astes? Dann wird
+  // seine Verbindungslinie nicht gezeichnet.
+  function isCollapsed(el) {
+    var node = el.parentElement;
+    while (node && node !== treeRoot) {
+      if (node.classList.contains('bz-children') && node.style.height === '0px') {
+        return true;
+      }
+      node = node.parentElement;
+    }
+    return false;
+  }
+
+  function renderConnectors() {
+    var treeRect = treeRoot.getBoundingClientRect();
+    connectorsSvg.setAttribute('width', treeRect.width);
+    connectorsSvg.setAttribute('height', treeRoot.scrollHeight);
+    while (connectorsSvg.firstChild) connectorsSvg.removeChild(connectorsSvg.firstChild);
+
+    edges.forEach(function (edge) {
+      if (isCollapsed(edge.from) || isCollapsed(edge.to)) return;
+      var r1 = edge.from.getBoundingClientRect();
+      var r2 = edge.to.getBoundingClientRect();
+      var x1 = r1.left + r1.width / 2 - treeRect.left;
+      var y1 = r1.top + r1.height / 2 - treeRect.top;
+      var x2 = r2.left + r2.width / 2 - treeRect.left;
+      var y2 = r2.top + r2.height / 2 - treeRect.top;
+      var midY = (y1 + y2) / 2;
+      var d = (Math.abs(x1 - x2) < 0.5)
+        ? ('M ' + x1 + ' ' + y1 + ' L ' + x2 + ' ' + y2)
+        : ('M ' + x1 + ' ' + y1 + ' C ' + x1 + ' ' + midY + ', ' + x2 + ' ' + midY + ', ' + x2 + ' ' + y2);
+      var path = document.createElementNS(svgNS, 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('class', 'bz-edge');
+      connectorsSvg.appendChild(path);
+    });
+  }
+
+  // Während einer Auf-/Zuklapp-Animation die Verbindungen laufend neu zeichnen,
+  // damit sie den animierten Zeilen exakt folgen.
+  var connectorAnimStart = null;
+  function animateConnectors() {
+    var start = performance.now();
+    connectorAnimStart = start;
+    function step(ts) {
+      if (connectorAnimStart !== start) return; // von einer neueren Animation überholt
+      renderConnectors();
+      if (ts - start < 260) {
+        requestAnimationFrame(step);
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  renderConnectors();
+  requestAnimationFrame(renderConnectors);
+  setTimeout(renderConnectors, 80); // Sicherheitsnetz gegen späte Web-Font-Verschiebungen
+  window.addEventListener('resize', renderConnectors);
 
   document.getElementById('bz-expand-all').addEventListener('click', function () {
     treeRoot.querySelectorAll('.bz-has-children').forEach(function (row) {
       row.classList.add('bz-open');
     });
     treeRoot.querySelectorAll('.bz-children').forEach(function (box) {
-      box.classList.remove('bz-hidden');
+      setChildrenOpen(box, true);
     });
+    animateConnectors();
   });
   document.getElementById('bz-collapse-all').addEventListener('click', function () {
     treeRoot.querySelectorAll('.bz-has-children').forEach(function (row) {
       row.classList.remove('bz-open');
     });
     treeRoot.querySelectorAll('.bz-children').forEach(function (box) {
-      box.classList.add('bz-hidden');
+      setChildrenOpen(box, false);
     });
+    animateConnectors();
   });
 })();
 </script>
 """
 
 
-st.title("Blubberzähler 🫧")
+st.title("CiteCut ✂️")
 st.caption(
     "Wörter zählen nach formatierten Kapiteln – ohne Klammer-Zitate, ohne Tabellen."
 )
@@ -433,11 +526,11 @@ uploaded = st.file_uploader(
 )
 
 if uploaded is None:
-    st.info("👆 Lade ein Word- oder PDF-Dokument hoch, um zu blubbern.")
+    st.info("👆 Lade ein Word- oder PDF-Dokument hoch, um loszulegen.")
     st.stop()
 
 
-@st.cache_data(show_spinner="Blubbere durch das Dokument …")
+@st.cache_data(show_spinner="Analysiere das Dokument …")
 def _load(file_bytes: bytes, filename: str):
     """Parst das Dokument (gecached, damit Checkbox-Klicks schnell bleiben)."""
     root = parse_document(io.BytesIO(file_bytes), filename)
@@ -542,13 +635,12 @@ if not selected_indices:
 # --------------------------------------------------------------------------- #
 # 4. Zählen & Ausgabe
 # --------------------------------------------------------------------------- #
-with st.spinner("🫧 Blubbere durch die Kapitel …"):
+with st.spinner("✂️ Zähle die Kapitel …"):
     nodes = count_document(root, opts, selected_indices)
     total = grand_total(nodes)
-    time.sleep(0.45)  # kurz, damit man das Blubbern auch sieht
+    time.sleep(0.45)  # kurze Verzögerung, damit der Spinner sichtbar bleibt
 
 st.divider()
-render_blubber_damage(total)
 st.metric("Gesamtwortzahl (Auswahl)", f"{total:,}".replace(",", "."))
 
 
@@ -578,17 +670,26 @@ def _node_to_dict(node: CountNode, main_total: int, selection_total: int, is_mai
     }
 
 
+def _count_rows(node: dict, is_main: bool) -> int:
+    """Zählt sichtbare Zeilen im voll aufgeklappten Baum (für die Komponentenhöhe)."""
+    count = 1
+    if is_main and node["children"] and node["own"] > 0:
+        count += 1  # "eigener Text"-Zeile
+    for child in node["children"]:
+        count += _count_rows(child, False)
+    return count
+
+
 st.subheader("Kapitel im Detail")
 
 tree_data = [_node_to_dict(node, 0, total, True) for node in nodes]
 tree_json = json.dumps(tree_data, ensure_ascii=False).replace("</", "<\\/")
-tree_max_height = min(420, max(140, len(nodes) * 42 + 60))
-tree_html = (
-    _TREE_HTML
-    .replace("__DATA__", tree_json)
-    .replace("__TREE_MAX_HEIGHT__", str(tree_max_height))
-)
-component_height = 34 + 34 + tree_max_height + 40
+
+total_rows = sum(_count_rows(node, True) for node in tree_data)
+# Kein Scroll-Fenster: die Komponente wird so hoch wie der voll aufgeklappte Baum.
+BAR_HEIGHT_PX = 100
+component_height = BAR_HEIGHT_PX + 44 + 22 + total_rows * 36 + 24
+tree_html = _TREE_HTML.replace("__DATA__", tree_json).replace("__BAR_HEIGHT__", str(BAR_HEIGHT_PX))
 components.html(tree_html, height=component_height, scrolling=False)
 
 
@@ -645,7 +746,7 @@ def _report_lines(node: CountNode, depth: int = 0):
 
 
 report = [
-    "Blubberzähler – Auswertung",
+    "CiteCut – Auswertung",
     f"Datei: {uploaded.name}",
     f"Optionen: {_opts_label}",
     "",
@@ -662,7 +763,7 @@ txt_bytes = "\n".join(report).encode("utf-8")
 def _build_csv() -> bytes:
     buf = io.StringIO()
     writer = csv.writer(buf, delimiter=";", lineterminator="\r\n")
-    writer.writerow([f"Blubberzähler – {uploaded.name}"])
+    writer.writerow([f"CiteCut – {uploaded.name}"])
     writer.writerow([f"Optionen: {_opts_label}"])
     writer.writerow([])
     writer.writerow(columns)
@@ -686,7 +787,7 @@ def _build_xlsx() -> bytes:
     header_fill = PatternFill("solid", fgColor="1F6FEB")
     main_font = Font(bold=True)
 
-    ws.append(["Blubberzähler-Auswertung"])
+    ws.append(["CiteCut-Auswertung"])
     ws["A1"].font = Font(bold=True, size=14)
     ws.append([f"Datei: {uploaded.name}"])
     ws.append([f"Optionen: {_opts_label}"])
@@ -727,7 +828,7 @@ with c1:
     st.download_button(
         "📄 .txt",
         data=txt_bytes,
-        file_name="blubberzaehler_report.txt",
+        file_name="citecut_report.txt",
         mime="text/plain",
         use_container_width=True,
     )
@@ -735,7 +836,7 @@ with c2:
     st.download_button(
         "📊 .csv",
         data=_build_csv(),
-        file_name="blubberzaehler.csv",
+        file_name="citecut.csv",
         mime="text/csv",
         use_container_width=True,
     )
@@ -743,7 +844,7 @@ with c3:
     st.download_button(
         "📗 .xlsx",
         data=_build_xlsx(),
-        file_name="blubberzaehler.xlsx",
+        file_name="citecut.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
